@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#03020c" />
+    <meta name="description" content="Romantic Birthday Celebration for Her & SSC Steno Exam Arena" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Romantic Birthday Celebration</title>
+    <script>
+      (function () {
+        var origError = console.error;
+        console.error = function () {
+          var msg = String(arguments[0] || '');
+          var errStr = arguments[1] ? String(arguments[1]) : '';
+          if (
+            msg.indexOf('[vite] failed to connect to websocket') !== -1 ||
+            msg.indexOf('WebSocket closed without opened') !== -1 ||
+            errStr.indexOf('WebSocket closed without opened') !== -1
+          ) {
+            return;
+          }
+          origError.apply(console, arguments);
+        };
+      })();
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event.reason;
+        var str = '';
+        if (reason) {
+          str = (reason.message || reason.reason || reason.type || String(reason) || '').toLowerCase();
+        }
+        if (str.indexOf('websocket') !== -1 || str.indexOf('vite') !== -1 || str.indexOf('ws') !== -1 || str.indexOf('opened') !== -1) {
+          event.preventDefault();
+          if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        }
+      });
+      window.addEventListener('error', function (event) {
+        var msg = (event.message || event.error || String(event) || '').toLowerCase();
+        if (msg.indexOf('websocket') !== -1 || msg.indexOf('vite') !== -1) {
+          event.preventDefault();
+          if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

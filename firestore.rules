@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated();
+    }
+
+    // Public readable site settings & configs, Admin write
+    match /siteSettings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /celebration/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /music/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /treasureHuntSettings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /treasureHuntStats/{docId} {
+      allow read: if true;
+      allow write: if (request.resource.data.keys().hasOnly(['totalGamesStarted', 'totalGamesCompleted', 'totalCluesFound', 'totalTimeSpentSec', 'updatedAt', 'lastSessionTimestamp']));
+    }
+
+    match /treasureHuntTemplates/{templateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /treasureHuntInstances/{instanceId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.templateId is string
+                            && request.resource.data.templateId.size() <= 100
+                            && request.resource.data.status is string
+                            && (request.resource.data.status == 'in_progress' || request.resource.data.status == 'completed' || request.resource.data.status == 'abandoned');
+      allow delete: if isAdmin();
+    }
+
+    match /memories/{memoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /loveReasons/{reasonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /vouchers/{voucherId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Wishes: Public can create wishes with strict type and size constraints, only Admin can read, update or delete
+    match /wishes/{wishId} {
+      allow create: if request.resource.data.wishText is string 
+                    && request.resource.data.wishText.size() > 0 
+                    && request.resource.data.wishText.size() <= 2000
+                    && (!('herName' in request.resource.data) || (request.resource.data.herName is string && request.resource.data.herName.size() <= 100));
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Audit logs: Only admin can read or create
+    match /auditLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // App Preferences: Client local preference state sync
+    match /appPreferences/{prefId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(['theme', 'soundFxEnabled', 'musicVolume', 'updatedAt', 'autoPlayMusic']);
+    }
+
+    // Exam Arena Questions & Progress
+    match /examArena/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || (docId == 'progress' && request.resource.data.size() < 500000);
+    }
+  }
+}

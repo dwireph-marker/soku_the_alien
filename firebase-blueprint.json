@@ -1,0 +1,282 @@
+{
+  "entities": {
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "General romantic website settings for birthday honoree",
+      "type": "object",
+      "properties": {
+        "herName": { "type": "string", "maxLength": 100 },
+        "hisName": { "type": "string", "maxLength": 100 },
+        "targetDate": { "type": "string", "maxLength": 50 },
+        "loveLetterTitle": { "type": "string", "maxLength": 200 },
+        "loveLetterBody": { "type": "string", "maxLength": 5000 },
+        "bgMusicEnabled": { "type": "boolean" },
+        "bgMusicType": { "type": "string", "maxLength": 50 },
+        "bgMusicPresetUrl": { "type": "string", "maxLength": 500 },
+        "bgMusicCustomUrl": { "type": "string", "maxLength": 500 },
+        "bgMusicCustomName": { "type": "string", "maxLength": 100 },
+        "soundFxEnabled": { "type": "boolean" }
+      },
+      "required": ["herName", "hisName", "targetDate"]
+    },
+    "CelebrationSettings": {
+      "title": "CelebrationSettings",
+      "description": "Celebration and cake interactivity configuration",
+      "type": "object",
+      "properties": {
+        "candleCount": { "type": "number" },
+        "confettiEnabled": { "type": "boolean" },
+        "confettiAmount": { "type": "number" },
+        "confettiDuration": { "type": "number" },
+        "wishModalTitle": { "type": "string", "maxLength": 200 },
+        "wishModalSubtitle": { "type": "string", "maxLength": 500 },
+        "blowButtonText": { "type": "string", "maxLength": 100 },
+        "relightButtonText": { "type": "string", "maxLength": 100 },
+        "microphoneEnabled": { "type": "boolean" },
+        "microphoneSensitivity": { "type": "number" },
+        "blowThreshold": { "type": "number" },
+        "minimumBlowDuration": { "type": "number" },
+        "blowCooldown": { "type": "number" }
+      }
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "Photo and video memories in reel",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 150 },
+        "date": { "type": "string", "maxLength": 50 },
+        "location": { "type": "string", "maxLength": 150 },
+        "caption": { "type": "string", "maxLength": 1000 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "imageFileId": { "type": "string", "maxLength": 150 },
+        "videoUrl": { "type": "string", "maxLength": 500 },
+        "videoFileId": { "type": "string", "maxLength": 150 },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "likes": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "LoveReason": {
+      "title": "LoveReason",
+      "description": "Reason why she is loved",
+      "type": "object",
+      "properties": {
+        "number": { "type": "number" },
+        "text": { "type": "string", "maxLength": 500 },
+        "icon": { "type": "string", "maxLength": 50 },
+        "isActive": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["text"]
+    },
+    "Voucher": {
+      "title": "Voucher",
+      "description": "Romantic birthday gift coupon",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 500 },
+        "code": { "type": "string", "maxLength": 50 },
+        "icon": { "type": "string", "maxLength": 50 },
+        "category": { "type": "string", "maxLength": 50 },
+        "isRedeemed": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "redeemedAt": { "type": "string" }
+      },
+      "required": ["title", "code"]
+    },
+    "MusicConfig": {
+      "title": "MusicConfig",
+      "description": "Background music settings",
+      "type": "object",
+      "properties": {
+        "bgMusicEnabled": { "type": "boolean" },
+        "bgMusicType": { "type": "string", "maxLength": 50 },
+        "bgMusicPresetUrl": { "type": "string", "maxLength": 500 },
+        "bgMusicCustomUrl": { "type": "string", "maxLength": 500 },
+        "bgMusicCustomName": { "type": "string", "maxLength": 100 },
+        "soundFxEnabled": { "type": "boolean" }
+      }
+    },
+    "Wish": {
+      "title": "Wish",
+      "description": "Birthday wish submitted by birthday girl or visitors",
+      "type": "object",
+      "properties": {
+        "wishText": { "type": "string", "maxLength": 2000 },
+        "herName": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" },
+        "isViewed": { "type": "boolean" }
+      },
+      "required": ["wishText"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Admin activity audit log",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string", "maxLength": 100 },
+        "adminEmail": { "type": "string", "maxLength": 150 },
+        "action": { "type": "string", "maxLength": 100 },
+        "resource": { "type": "string", "maxLength": 100 },
+        "resourceId": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string" }
+      }
+    },
+    "AppPreferences": {
+      "title": "AppPreferences",
+      "description": "Application user theme and UI preferences",
+      "type": "object",
+      "properties": {
+        "theme": { "type": "string", "maxLength": 50 },
+        "soundEnabled": { "type": "boolean" }
+      }
+    },
+    "TreasureHuntSettings": {
+      "title": "TreasureHuntSettings",
+      "description": "Global configuration for The Secret Hunt detective escape room",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "defaultDifficulty": { "type": "string", "maxLength": 20 },
+        "defaultTimeLimit": { "type": "number" },
+        "hintsEnabled": { "type": "boolean" },
+        "maxHints": { "type": "number" },
+        "soundFxEnabled": { "type": "boolean" },
+        "ambientAudioEnabled": { "type": "boolean" },
+        "celebrationConfetti": { "type": "boolean" }
+      }
+    },
+    "TreasureHuntTemplate": {
+      "title": "TreasureHuntTemplate",
+      "description": "Detective investigation mission template",
+      "type": "object",
+      "properties": {
+        "codeName": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 150 },
+        "subtitle": { "type": "string", "maxLength": 250 },
+        "briefing": { "type": "string", "maxLength": 3000 },
+        "difficulty": { "type": "string", "maxLength": 20 },
+        "timeLimitMinutes": { "type": "number" },
+        "enabled": { "type": "boolean" },
+        "defaultCode": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["codeName", "title", "briefing"]
+    },
+    "TreasureHuntStats": {
+      "title": "TreasureHuntStats",
+      "description": "Aggregated analytics for mystery plays and completions",
+      "type": "object",
+      "properties": {
+        "totalPlays": { "type": "number" },
+        "completed": { "type": "number" },
+        "abandoned": { "type": "number" },
+        "averageSolveTimeSeconds": { "type": "number" },
+        "averageHintsUsed": { "type": "number" }
+      }
+    },
+    "TreasureHuntInstance": {
+      "title": "TreasureHuntInstance",
+      "description": "Active or historical playthrough state of a detective investigation",
+      "type": "object",
+      "properties": {
+        "instanceId": { "type": "string", "maxLength": 100 },
+        "templateId": { "type": "string", "maxLength": 100 },
+        "codeName": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 150 },
+        "status": { "type": "string", "enum": ["idle", "loading", "active", "paused", "completed", "expired", "error"] },
+        "startedAt": { "type": "number" },
+        "expiresAt": { "type": "number" },
+        "timeLimitSeconds": { "type": "number" },
+        "currentTab": { "type": "string", "maxLength": 50 },
+        "codeHash": { "type": "string", "maxLength": 100 },
+        "hintsUsed": { "type": "number" },
+        "maxHints": { "type": "number" },
+        "completedAt": { "type": "number" },
+        "solveDurationSeconds": { "type": "number" }
+      },
+      "required": ["instanceId", "templateId", "status", "startedAt", "expiresAt"]
+    },
+    "ExamArenaData": {
+      "title": "ExamArenaData",
+      "description": "SSC Stenographer Exam Arena questions, previous papers, current affairs, configurations, and aspirant progress",
+      "type": "object",
+      "properties": {
+        "items": { "type": "array" },
+        "totalXP": { "type": "number" },
+        "level": { "type": "number" },
+        "currentStreak": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "siteSettings/main": {
+      "schema": "SiteSettings",
+      "description": "Main site settings document"
+    },
+    "celebration/main": {
+      "schema": "CelebrationSettings",
+      "description": "Main celebration settings document"
+    },
+    "music/main": {
+      "schema": "MusicConfig",
+      "description": "Main music configuration document"
+    },
+    "treasureHuntSettings/main": {
+      "schema": "TreasureHuntSettings",
+      "description": "Global settings for detective escape room"
+    },
+    "treasureHuntStats/main": {
+      "schema": "TreasureHuntStats",
+      "description": "Analytics data for the detective game"
+    },
+    "treasureHuntTemplates/{templateId}": {
+      "schema": "TreasureHuntTemplate",
+      "description": "Collection of procedural and custom hunt templates"
+    },
+    "treasureHuntInstances/{instanceId}": {
+      "schema": "TreasureHuntInstance",
+      "description": "Collection of active and completed game sessions"
+    },
+    "examArena/{docId}": {
+      "schema": "ExamArenaData",
+      "description": "Collection containing exam arena questions, papers, current affairs, config, and user progress"
+    },
+    "memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Collection of photo/video memories"
+    },
+    "loveReasons/{reasonId}": {
+      "schema": "LoveReason",
+      "description": "Collection of love reasons"
+    },
+    "vouchers/{voucherId}": {
+      "schema": "Voucher",
+      "description": "Collection of romantic gift vouchers"
+    },
+    "wishes/{wishId}": {
+      "schema": "Wish",
+      "description": "Collection of submitted birthday wishes"
+    },
+    "auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Collection of admin audit logs"
+    },
+    "appPreferences/{prefId}": {
+      "schema": "AppPreferences",
+      "description": "App preferences collection"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Remix Birthday Wishes for Her",
+  "description": "A romantic birthday celebration website featuring animated balloons, floating hearts, continuous memory photo gallery, countdown timer to midnight, interactive birthday cake, and custom love letters.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
