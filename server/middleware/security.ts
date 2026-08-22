@@ -18,10 +18,20 @@ export function createRateLimiter(options: RateLimitOptions) {
     windowMs,
     maxRequests,
     message = 'Too many requests, please try again later.',
-    keyGenerator = (req: Request) =>
-      req.ip ||
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      'unknown',
+    keyGenerator = (req: Request) => {
+      try {
+        const rawXff = req.headers['x-forwarded-for'];
+        let ip = '';
+        if (typeof rawXff === 'string') {
+          ip = rawXff.split(',')[0].trim();
+        } else if (Array.isArray(rawXff) && rawXff.length > 0 && typeof rawXff[0] === 'string') {
+          ip = rawXff[0].split(',')[0].trim();
+        }
+        return ip || req.ip || req.socket?.remoteAddress || 'unknown';
+      } catch {
+        return 'unknown';
+      }
+    },
   } = options;
 
   const hits = new Map<string, ClientRecord>();

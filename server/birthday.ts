@@ -16,11 +16,15 @@ export interface BirthdaySettings {
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'birthday-settings.json');
 
-// Ensure data directory exists
+// Ensure data directory exists safely
 function ensureDataDir() {
-  const dir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    const dir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (err) {
+    // In serverless environments, local filesystem may be read-only
   }
 }
 

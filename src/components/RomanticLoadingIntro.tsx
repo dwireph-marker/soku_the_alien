@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Heart } from 'lucide-react';
 
@@ -8,26 +8,111 @@ interface RomanticLoadingIntroProps {
   introName?: string;
 }
 
-interface Particle {
+interface PrecomputedParticle {
   x: number;
   y: number;
   originX: number;
   originY: number;
   targetX: number;
   targetY: number;
-  vx: number;
-  vy: number;
-  size: number;
-  color: string;
-  alpha: number;
+  baseSize: number;
+  colorIndex: number;
   targetAlpha: number;
   sparkleSpeed: number;
   sparklePhase: number;
   isStar: boolean;
-  angle: number;
-  speed: number;
-  distance: number;
-  layer: number; // 0: background dust, 1: heart contour, 2: heart fill, 3: trailing sparks
+  layer: number; // 0: background star, 1: heart contour, 2: heart fill
+  fillThreshold: number; // 0 to 1 for progressive fill reveal
+  idleAngle: number;
+  idleSpeed: number;
+  scatterDist: number;
+}
+
+const PALETTE = [
+  '#e879f9', // Pink / Orchid
+  '#c084fc', // Purple / Violet
+  '#f43f5e', // Rose
+  '#fb7185', // Soft Rose
+  '#a855f7', // Neon Purple
+  '#fef08a', // Warm Gold
+  '#ffffff', // Crisp White
+];
+
+// Mathematical Parametric Heart coordinates generator
+// x = 16 * sin^3(t)
+// y = -(13 * cos(t) - 5 * cos(2t) - 2 * cos(3t) - cos(4t))
+function getHeartPoint(t: number, scale: number) {
+  const sinT = Math.sin(t);
+  const x = 16 * sinT * sinT * sinT;
+  const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+  return {
+    x: x * scale,
+    y: y * scale,
+  };
+}
+
+// Pre-create offscreen sprite textures for ultra-fast GPU blitting (no per-frame shadowBlur)
+function createParticleSprites(): {
+  circleSprites: HTMLCanvasElement[];
+  starSprites: HTMLCanvasElement[];
+} {
+  const circleSprites: HTMLCanvasElement[] = [];
+  const starSprites: HTMLCanvasElement[] = [];
+
+  const spriteSize = 48; // crisp resolution for cached texture
+  const center = spriteSize / 2;
+
+  PALETTE.forEach((color) => {
+    // 1. Glowing Circle Sprite
+    const cCanvas = document.createElement('canvas');
+    cCanvas.width = spriteSize;
+    cCanvas.height = spriteSize;
+    const cCtx = cCanvas.getContext('2d');
+    if (cCtx) {
+      const grad = cCtx.createRadialGradient(center, center, 0, center, center, center * 0.95);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.25, color);
+      grad.addColorStop(0.65, color + '55'); // transparent tail
+      grad.addColorStop(1, color + '00');
+
+      cCtx.fillStyle = grad;
+      cCtx.beginPath();
+      cCtx.arc(center, center, center * 0.95, 0, Math.PI * 2);
+      cCtx.fill();
+    }
+    circleSprites.push(cCanvas);
+
+    // 2. Glowing 4-point Diamond Star Sprite
+    const sCanvas = document.createElement('canvas');
+    sCanvas.width = spriteSize;
+    sCanvas.height = spriteSize;
+    const sCtx = sCanvas.getContext('2d');
+    if (sCtx) {
+      // Soft radial glow behind star
+      const bgGrad = sCtx.createRadialGradient(center, center, 0, center, center, center * 0.9);
+      bgGrad.addColorStop(0, '#ffffff');
+      bgGrad.addColorStop(0.3, color + '99');
+      bgGrad.addColorStop(1, color + '00');
+      sCtx.fillStyle = bgGrad;
+      sCtx.beginPath();
+      sCtx.arc(center, center, center * 0.85, 0, Math.PI * 2);
+      sCtx.fill();
+
+      // Sharp 4-point diamond star core
+      sCtx.fillStyle = '#ffffff';
+      sCtx.beginPath();
+      const r = center * 0.75;
+      sCtx.moveTo(center, center - r);
+      sCtx.quadraticCurveTo(center, center, center + r, center);
+      sCtx.quadraticCurveTo(center, center, center, center + r);
+      sCtx.quadraticCurveTo(center, center, center - r, center);
+      sCtx.quadraticCurveTo(center, center, center, center - r);
+      sCtx.fill();
+    }
+    starSprites.push(sCanvas);
+  });
+
+  return { circleSprites, starSprites };
 }
 
 export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
@@ -36,19 +121,27 @@ export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
   introName,
 }) => {
   const displayIntroName = (introName || '').trim() || herName;
-  const introBadge = displayIntroName.startsWith('For ') || displayIntroName.startsWith('for ') ? displayIntroName : `For ${displayIntroName}`;
+  const introBadge =
+    displayIntroName.startsWith('For ') || displayIntroName.startsWith('for ')
+      ? displayIntroName
+      : `For ${displayIntroName}`;
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [animationPhase, setAnimationPhase] = useState<'initial' | 'gathering' | 'formed' | 'beating' | 'exploding' | 'complete'>('initial');
   const [showText, setShowText] = useState(false);
   const [isExpandingOut, setIsExpandingOut] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
+  const [isHeartFormed, setIsHeartFormed] = useState(false);
 
-  // Time tracker for precise script choreography
   const startTimeRef = useRef<number>(0);
   const animationFrameIdRef = useRef<number>(0);
+  const isFinishedRef = useRef<boolean>(false);
   const skipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const spritesRef = useRef<{ circleSprites: HTMLCanvasElement[]; starSprites: HTMLCanvasElement[] } | null>(null);
 
-  // Lock body/html scrolling while Intro is open and restore on unmount
+  // Cached particles and contour points to prevent per-frame recreation
+  const particlesRef = useRef<PrecomputedParticle[]>([]);
+  const contourPathRef = useRef<{ x: number; y: number }[]>([]);
+
+  // Prevent scroll during loading
   useEffect(() => {
     const prevBodyOverflow = document.body.style.overflow;
     const prevHtmlOverflow = document.documentElement.style.overflow;
@@ -71,350 +164,402 @@ export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    // Pre-render particle offscreen sprite cache once
+    if (!spritesRef.current && typeof document !== 'undefined') {
+      spritesRef.current = createParticleSprites();
+    }
 
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const updateCanvasDimensions = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (canvas) {
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+      }
     };
 
-    window.addEventListener('resize', handleResize);
+    updateCanvasDimensions();
 
-    // Particle Palette
-    const colors = [
-      '#e879f9', // Pink / Orchid
-      '#c084fc', // Purple / Violet
-      '#f43f5e', // Rose
-      '#fb7185', // Soft Rose
-      '#a855f7', // Neon Purple
-      '#fef08a', // Warm Gold highlight
-      '#ffffff', // Crisp white sparkle
-    ];
-
-    // Mathematical Parametric Heart coordinates generator
-    // x = 16 * sin^3(t)
-    // y = -(13 * cos(t) - 5 * cos(2t) - 2 * cos(3t) - cos(4t))
-    const getHeartPoint = (t: number, scale: number = 14) => {
-      const x = 16 * Math.pow(Math.sin(t), 3);
-      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-      return {
-        x: x * scale,
-        y: y * scale,
-      };
-    };
-
-    // Calculate responsive scale for heart
+    const isMobile = width < 768;
     const heartScale = Math.min(width, height) < 600 ? 9.5 : 14.5;
     const centerX = width / 2;
     const centerY = height / 2 - 20;
 
-    // Create particles
-    const totalHeartParticles = 480;
-    const backgroundStarsCount = 70;
-    const particles: Particle[] = [];
+    // Precompute contour path coordinates (120 steps is visually silky and fast)
+    const contourSteps = 140;
+    const contourPoints: { x: number; y: number }[] = [];
+    for (let s = 0; s <= contourSteps; s++) {
+      const t = (s / contourSteps) * Math.PI * 2;
+      const pt = getHeartPoint(t, heartScale);
+      contourPoints.push({ x: pt.x, y: pt.y });
+    }
+    contourPathRef.current = contourPoints;
 
-    // 1. Generate Background Floating Stars & Bokeh Dust
+    // Precompute particles once (Intelligently sized for performance)
+    // Desktop: ~280 heart particles + 45 bg stars = 325 total
+    // Mobile: ~140 heart particles + 25 bg stars = 165 total
+    const heartParticleCount = isMobile ? 140 : 280;
+    const backgroundStarsCount = isMobile ? 25 : 45;
+    const contourCount = Math.floor(heartParticleCount * 0.6); // 60% outline, 40% fill
+    const fillCount = heartParticleCount - contourCount;
+
+    const newParticles: PrecomputedParticle[] = [];
+
+    // 1. Precompute Background Ambient Dust & Stars
     for (let i = 0; i < backgroundStarsCount; i++) {
-      const rx = Math.random() * width;
-      const ry = Math.random() * height;
-      particles.push({
+      const rx = (Math.sin(i * 99.7) * 0.5 + 0.5) * width;
+      const ry = (Math.cos(i * 33.3) * 0.5 + 0.5) * height;
+      newParticles.push({
         x: rx,
         y: ry,
         originX: rx,
         originY: ry,
         targetX: rx,
         targetY: ry,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        size: Math.random() < 0.2 ? 2.5 : Math.random() < 0.6 ? 1.5 : 0.9,
-        color: i % 3 === 0 ? '#38bdf8' : i % 3 === 1 ? '#fef08a' : '#e879f9',
-        alpha: 0.1 + Math.random() * 0.7,
-        targetAlpha: 0.7,
-        sparkleSpeed: 0.02 + Math.random() * 0.04,
-        sparklePhase: Math.random() * Math.PI * 2,
-        isStar: true,
-        angle: Math.random() * Math.PI * 2,
-        speed: 0.2 + Math.random() * 0.3,
-        distance: 0,
+        baseSize: i % 4 === 0 ? 3.0 : i % 2 === 0 ? 2.0 : 1.2,
+        colorIndex: i % PALETTE.length,
+        targetAlpha: 0.35 + (i % 5) * 0.1,
+        sparkleSpeed: 0.02 + (i % 4) * 0.015,
+        sparklePhase: (i * 1.3) % (Math.PI * 2),
+        isStar: i % 3 === 0,
         layer: 0,
+        fillThreshold: 0,
+        idleAngle: (i * 0.7) % (Math.PI * 2),
+        idleSpeed: 0.15 + (i % 3) * 0.08,
+        scatterDist: 0,
       });
     }
 
-    // 2. Generate Heart Outline & Internal Constellation Particles
-    for (let i = 0; i < totalHeartParticles; i++) {
-      const t = (i / totalHeartParticles) * Math.PI * 2;
-      const isContour = i < 280;
-
-      let target: { x: number; y: number };
-      if (isContour) {
-        // Outline of the heart
-        const pt = getHeartPoint(t, heartScale);
-        target = { x: centerX + pt.x, y: centerY + pt.y };
-      } else {
-        // Soft inner volume / cloud of the heart
-        const pt = getHeartPoint(t, heartScale);
-        const innerRatio = Math.sqrt(Math.random()) * 0.85;
-        target = {
-          x: centerX + pt.x * innerRatio + (Math.random() - 0.5) * 8,
-          y: centerY + pt.y * innerRatio + (Math.random() - 0.5) * 8,
-        };
-      }
-
-      // Initial scatter position (scattered far and floating in stardust field)
-      const scatterAngle = Math.random() * Math.PI * 2;
-      const scatterDist = 120 + Math.random() * (Math.max(width, height) * 0.55);
+    // 2. Precompute Heart Outline Particles
+    for (let i = 0; i < contourCount; i++) {
+      const t = (i / contourCount) * Math.PI * 2;
+      const pt = getHeartPoint(t, heartScale);
+      const scatterAngle = (i * 2.39996) % (Math.PI * 2); // Golden ratio scatter distribution
+      const scatterDist = 90 + ((i * 37) % Math.max(width * 0.45, 180));
       const startX = centerX + Math.cos(scatterAngle) * scatterDist;
       const startY = centerY + Math.sin(scatterAngle) * scatterDist;
 
-      particles.push({
+      // Fill order: bottom of the heart fills first to top lobes
+      const normalizedY = (pt.y + 16 * heartScale) / (32 * heartScale);
+      const fillProgression = Math.max(0, Math.min(1, 1 - normalizedY + ((i % 7) - 3) * 0.04));
+
+      newParticles.push({
         x: startX,
         y: startY,
         originX: startX,
         originY: startY,
-        targetX: target.x,
-        targetY: target.y,
-        vx: 0,
-        vy: 0,
-        size: Math.random() < 0.15 ? 3.0 : Math.random() < 0.5 ? 2.0 : 1.2,
-        color: colors[i % colors.length],
-        alpha: 0,
-        targetAlpha: 0.85 + Math.random() * 0.15,
-        sparkleSpeed: 0.03 + Math.random() * 0.05,
-        sparklePhase: Math.random() * Math.PI * 2,
-        isStar: Math.random() < 0.35,
-        angle: scatterAngle,
-        speed: 0.015 + Math.random() * 0.02,
-        distance: scatterDist,
-        layer: isContour ? 1 : 2,
+        targetX: centerX + pt.x,
+        targetY: centerY + pt.y,
+        baseSize: i % 5 === 0 ? 3.4 : i % 2 === 0 ? 2.4 : 1.6,
+        colorIndex: i % PALETTE.length,
+        targetAlpha: 0.85 + (i % 3) * 0.05,
+        sparkleSpeed: 0.04 + (i % 4) * 0.015,
+        sparklePhase: (i * 1.7) % (Math.PI * 2),
+        isStar: i % 4 === 0,
+        layer: 1,
+        fillThreshold: fillProgression,
+        idleAngle: scatterAngle,
+        idleSpeed: 0.02 + (i % 3) * 0.01,
+        scatterDist: scatterDist,
       });
     }
 
+    // 3. Precompute Heart Interior Stardust Volume
+    for (let i = 0; i < fillCount; i++) {
+      const t = (i / fillCount) * Math.PI * 2;
+      const pt = getHeartPoint(t, heartScale);
+      // Stratified inner radius
+      const innerRatio = Math.sqrt((i + 1) / fillCount) * 0.82;
+      const jitterX = Math.sin(i * 17.1) * 6;
+      const jitterY = Math.cos(i * 13.7) * 6;
+
+      const tx = centerX + pt.x * innerRatio + jitterX;
+      const ty = centerY + pt.y * innerRatio + jitterY;
+
+      const scatterAngle = (i * 3.14159 + 1.2) % (Math.PI * 2);
+      const scatterDist = 80 + ((i * 29) % Math.max(width * 0.4, 160));
+      const startX = centerX + Math.cos(scatterAngle) * scatterDist;
+      const startY = centerY + Math.sin(scatterAngle) * scatterDist;
+
+      const normalizedY = (ty - centerY + 16 * heartScale) / (32 * heartScale);
+      const fillProgression = Math.max(0, Math.min(1, 1 - normalizedY + ((i % 5) - 2) * 0.05));
+
+      newParticles.push({
+        x: startX,
+        y: startY,
+        originX: startX,
+        originY: startY,
+        targetX: tx,
+        targetY: ty,
+        baseSize: i % 6 === 0 ? 3.0 : i % 2 === 0 ? 2.0 : 1.4,
+        colorIndex: (i + 2) % PALETTE.length,
+        targetAlpha: 0.8 + (i % 3) * 0.07,
+        sparkleSpeed: 0.035 + (i % 3) * 0.02,
+        sparklePhase: (i * 2.1) % (Math.PI * 2),
+        isStar: i % 5 === 0,
+        layer: 2,
+        fillThreshold: fillProgression,
+        idleAngle: scatterAngle,
+        idleSpeed: 0.02 + (i % 3) * 0.01,
+        scatterDist: scatterDist,
+      });
+    }
+
+    particlesRef.current = newParticles;
+
+    // Resize Handler with Debounce
+    let resizeTimer: NodeJS.Timeout | null = null;
+    const handleResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        updateCanvasDimensions();
+      }, 150);
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+
+    // Tab Visibility Handler (Pause animation when hidden, resume when visible)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (animationFrameIdRef.current) {
+          cancelAnimationFrame(animationFrameIdRef.current);
+          animationFrameIdRef.current = 0;
+        }
+      } else {
+        if (!animationFrameIdRef.current && !isFinishedRef.current) {
+          animationFrameIdRef.current = requestAnimationFrame(render);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     startTimeRef.current = performance.now();
+    let textTriggered = false;
+    let formedTriggered = false;
+    let expandTriggered = false;
 
-    // Render / Animation Loop
+    // Ultra-smooth 60fps Animation Loop
     const render = (now: number) => {
-      const elapsed = (now - startTimeRef.current) / 1000; // in seconds
+      const elapsed = prefersReducedMotion ? 3.5 : (now - startTimeRef.current) / 1000;
 
-      ctx.clearRect(0, 0, width, height);
-
-      // Phase State Transitions
-      if (elapsed < 1.0) {
-        // 0.0s - 1.0s: Initial ambient float
-      } else if (elapsed >= 1.0 && elapsed < 3.0) {
-        // 1.0s - 3.0s: Gathering toward center to form the heart outline & fill
-        setAnimationPhase('gathering');
-      } else if (elapsed >= 3.0 && elapsed < 3.5) {
-        // 3.0s: Formed & fully glowing
-        setAnimationPhase('formed');
+      // Handle discrete React UI state changes exactly once without re-rendering every frame
+      if (elapsed >= 2.8 && !formedTriggered) {
+        formedTriggered = true;
+        setIsHeartFormed(true);
+      }
+      if (elapsed >= 3.0 && !textTriggered) {
+        textTriggered = true;
         setShowText(true);
-      } else if (elapsed >= 3.5 && elapsed < 4.5) {
-        // 3.5s - 4.5s: Heart beats gently 2 times
-        setAnimationPhase('beating');
-        setShowText(true);
-      } else if (elapsed >= 4.5 && elapsed < 5.0) {
-        // 4.5s - 5.0s: Intense soft glow
+      }
+      if (elapsed >= 4.6 && textTriggered && !expandTriggered) {
         setShowText(false);
-      } else if (elapsed >= 5.0 && elapsed < 5.6) {
-        // 5.0s - 5.5s: Expand outward with smooth light/particle transition
-        setAnimationPhase('exploding');
+      }
+      if (elapsed >= 5.0 && !expandTriggered) {
+        expandTriggered = true;
         setIsExpandingOut(true);
-      } else if (elapsed >= 5.6) {
-        // Transition finished
-        if (!isFinished) {
-          setIsFinished(true);
+      }
+      if (elapsed >= 5.6) {
+        if (!isFinishedRef.current) {
+          isFinishedRef.current = true;
           onComplete();
         }
         return;
       }
 
-      // Calculate Heartbeat / Pulse Factor
+      // Reset transform & clear canvas efficiently
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      // Heartbeat pulse physics calculation
       let beatScale = 1.0;
       let beatGlow = 1.0;
 
       if (elapsed >= 3.5 && elapsed < 4.5) {
-        // 2 rhythmic heartbeats over 1.0 second (two peak pulses at ~3.7s and ~4.1s)
-        const beatProgress = (elapsed - 3.5) / 1.0; // 0 to 1
-        const pulse = Math.sin(beatProgress * Math.PI * 4); // 2 full waves
+        // 2 silky rhythmic heartbeats (sinusoidal pulse waves)
+        const beatProgress = (elapsed - 3.5) / 1.0;
+        const pulse = Math.sin(beatProgress * Math.PI * 4);
         if (pulse > 0) {
-          beatScale = 1.0 + pulse * 0.085;
-          beatGlow = 1.0 + pulse * 0.7;
+          beatScale = 1.0 + pulse * 0.08;
+          beatGlow = 1.0 + pulse * 0.6;
         }
       } else if (elapsed >= 4.5 && elapsed < 5.0) {
-        // Radiating brightness before explosion
+        // Soft aura crescendo before transition
         const brighten = (elapsed - 4.5) / 0.5;
-        beatScale = 1.0 + brighten * 0.12;
-        beatGlow = 1.0 + brighten * 1.5;
+        beatScale = 1.0 + brighten * 0.1;
+        beatGlow = 1.0 + brighten * 1.2;
       } else if (elapsed >= 5.0) {
-        // Expansion phase
+        // Smooth outward expansion
         const expandFactor = (elapsed - 5.0) / 0.55;
-        beatScale = 1.0 + Math.pow(expandFactor, 2) * 8.0;
-        beatGlow = Math.max(0, 1.0 - expandFactor * 1.2);
+        beatScale = 1.0 + expandFactor * expandFactor * 6.5;
+        beatGlow = Math.max(0, 1.0 - expandFactor * 1.3);
       }
 
-      // 1. Draw glowing neon path tracing (Reference Image 2 stroke with moving comet tip)
-      if (elapsed >= 1.0 && elapsed < 5.0) {
-        const traceProgress = Math.min(1.0, Math.max(0, (elapsed - 1.0) / 1.8)); // complete by 2.8s
+      // 1. Draw Neon Heart Tracing (Contour path)
+      if (elapsed >= 0.8 && elapsed < 5.0) {
+        const traceProgress = Math.min(1.0, Math.max(0, (elapsed - 0.8) / 1.8)); // 0.8s to 2.6s
+        const pts = contourPathRef.current;
+        if (pts && pts.length > 1) {
+          const maxIdx = pts.length - 1;
+          const ptsToDraw = Math.min(maxIdx, Math.floor(pts.length * traceProgress));
 
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.scale(beatScale, beatScale);
+          if (ptsToDraw >= 1 && pts[0]) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.scale(beatScale, beatScale);
 
-        // Neon Glow Pass 1: Outer Soft Violet Halo
-        ctx.beginPath();
-        const steps = 180;
-        const currentSteps = Math.floor(steps * traceProgress);
+            // Neon Layer 1: Soft Outer Violet Glow Line
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let s = 1; s <= ptsToDraw; s++) {
+              if (pts[s]) {
+                ctx.lineTo(pts[s].x, pts[s].y);
+              }
+            }
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = `rgba(192, 132, 252, ${0.45 * beatGlow})`;
+            ctx.stroke();
 
-        for (let s = 0; s <= currentSteps; s++) {
-          const t = (s / steps) * Math.PI * 2;
-          const pt = getHeartPoint(t, heartScale);
-          if (s === 0) ctx.moveTo(pt.x, pt.y);
-          else ctx.lineTo(pt.x, pt.y);
+            // Neon Layer 2: Crisp Bright Core
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let s = 1; s <= ptsToDraw; s++) {
+              if (pts[s]) {
+                ctx.lineTo(pts[s].x, pts[s].y);
+              }
+            }
+            ctx.lineWidth = 2.2;
+            ctx.strokeStyle = `rgba(255, 235, 248, ${0.85 * beatGlow})`;
+            ctx.stroke();
+
+            // Glowing Comet Head Particle Tip (Smooth tracer)
+            const headIdx = Math.min(maxIdx, ptsToDraw);
+            if (traceProgress < 1.0 && pts[headIdx]) {
+              const headPt = pts[headIdx];
+              const headSize = 24 * beatScale;
+              if (spritesRef.current && spritesRef.current.circleSprites.length > 0) {
+                const headSprite = spritesRef.current.circleSprites[0]; // Pink/orchid glow sprite
+                ctx.drawImage(
+                  headSprite,
+                  headPt.x - headSize / 2,
+                  headPt.y - headSize / 2,
+                  headSize,
+                  headSize
+                );
+              }
+            }
+
+            ctx.restore();
+          }
         }
-
-        ctx.shadowColor = '#c084fc';
-        ctx.shadowBlur = 25 * beatGlow;
-        ctx.strokeStyle = `rgba(192, 132, 252, ${0.4 * beatGlow})`;
-        ctx.lineWidth = 6;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-
-        // Neon Glow Pass 2: Sharp Inner Pink/White Core
-        ctx.beginPath();
-        for (let s = 0; s <= currentSteps; s++) {
-          const t = (s / steps) * Math.PI * 2;
-          const pt = getHeartPoint(t, heartScale);
-          if (s === 0) ctx.moveTo(pt.x, pt.y);
-          else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.shadowColor = '#f43f5e';
-        ctx.shadowBlur = 12 * beatGlow;
-        ctx.strokeStyle = `rgba(255, 230, 245, ${0.9 * beatGlow})`;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-
-        // Glowing Comet Tip Head (As seen in Reference Image 2)
-        if (traceProgress < 1.0 && currentSteps > 0) {
-          const headT = (currentSteps / steps) * Math.PI * 2;
-          const headPt = getHeartPoint(headT, heartScale);
-
-          const radGrad = ctx.createRadialGradient(headPt.x, headPt.y, 0, headPt.x, headPt.y, 22);
-          radGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-          radGrad.addColorStop(0.3, 'rgba(236, 72, 153, 0.9)');
-          radGrad.addColorStop(0.7, 'rgba(168, 85, 247, 0.4)');
-          radGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
-
-          ctx.fillStyle = radGrad;
-          ctx.beginPath();
-          ctx.arc(headPt.x, headPt.y, 22, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.restore();
       }
 
-      // 2. Update and Render All Stardust Particles
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
+      // 2. Render Particles via GPU Sprites (High FPS Texture Blitting)
+      const particles = particlesRef.current;
+      const sprites = spritesRef.current;
 
-        if (p.layer === 0) {
-          // Ambient background stars
-          p.sparklePhase += p.sparkleSpeed;
-          p.x += p.vx;
-          p.y += p.vy;
+      if (sprites) {
+        const { circleSprites, starSprites } = sprites;
+        const numCircleSprites = circleSprites.length;
+        const numStarSprites = starSprites.length;
 
-          // Wrap edges
-          if (p.x < 0) p.x = width;
-          if (p.x > width) p.x = 0;
-          if (p.y < 0) p.y = height;
-          if (p.y > height) p.y = 0;
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
 
-          const currentAlpha = 0.2 + Math.abs(Math.sin(p.sparklePhase)) * 0.7;
+          // 2a. Background Ambient Stardust (Layer 0)
+          if (p.layer === 0) {
+            p.sparklePhase += p.sparkleSpeed;
+            p.x += Math.sin(p.idleAngle) * p.idleSpeed;
+            p.y += Math.cos(p.idleAngle) * p.idleSpeed;
 
-          ctx.save();
-          ctx.globalAlpha = currentAlpha;
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-          continue;
-        }
+            // Wrap screen boundary smoothly
+            if (p.x < 0) p.x = width;
+            else if (p.x > width) p.x = 0;
+            if (p.y < 0) p.y = height;
+            else if (p.y > height) p.y = 0;
 
-        // Heart Particles (layer 1 & 2)
-        if (elapsed < 1.0) {
-          // Slow floating idle
-          p.x = p.originX + Math.sin(now * 0.001 + i) * 6;
-          p.y = p.originY + Math.cos(now * 0.001 + i) * 6;
-          p.alpha = Math.min(p.targetAlpha * 0.5, (elapsed / 1.0) * 0.5);
-        } else if (elapsed >= 1.0 && elapsed < 3.0) {
-          // Converge towards heart outline target coordinates
-          const gatherProgress = (elapsed - 1.0) / 2.0; // 0 to 1
-          // Smooth easeInOutCubic
-          const ease =
-            gatherProgress < 0.5
-              ? 4 * gatherProgress * gatherProgress * gatherProgress
-              : 1 - Math.pow(-2 * gatherProgress + 2, 3) / 2;
+            const alpha = 0.2 + Math.abs(Math.sin(p.sparklePhase)) * p.targetAlpha;
+            const size = p.baseSize * (1 + Math.sin(p.sparklePhase) * 0.25);
+            const sprite = p.isStar
+              ? starSprites[p.colorIndex % numStarSprites]
+              : circleSprites[p.colorIndex % numCircleSprites];
 
-          p.x = p.originX + (p.targetX - p.originX) * ease;
-          p.y = p.originY + (p.targetY - p.originY) * ease;
-          p.alpha = 0.4 + ease * 0.6;
-        } else if (elapsed >= 3.0 && elapsed < 5.0) {
-          // Lock to Heart with pulse / beat scaling
-          const dx = p.targetX - centerX;
-          const dy = p.targetY - centerY;
-
-          p.x = centerX + dx * beatScale + Math.sin(now * 0.003 + i) * 1.2;
-          p.y = centerY + dy * beatScale + Math.cos(now * 0.003 + i) * 1.2;
-
-          p.sparklePhase += p.sparkleSpeed * 1.5;
-          p.alpha = 0.5 + Math.abs(Math.sin(p.sparklePhase)) * 0.5 * beatGlow;
-        } else if (elapsed >= 5.0) {
-          // Outward explosion / expansion
-          const dx = p.targetX - centerX;
-          const dy = p.targetY - centerY;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const speed = (elapsed - 5.0) * 18;
-
-          p.x += (dx / dist) * speed * (1.2 + (i % 5) * 0.4);
-          p.y += (dy / dist) * speed * (1.2 + (i % 5) * 0.4);
-          p.alpha = Math.max(0, 1.0 - (elapsed - 5.0) * 2.2);
-        }
-
-        // Draw Particle
-        if (p.alpha > 0.02) {
-          ctx.save();
-          ctx.globalAlpha = Math.min(1, p.alpha);
-          ctx.fillStyle = p.color;
-
-          if (p.isStar && p.size > 1.8) {
-            // Draw four-point diamond star sparkle
-            ctx.translate(p.x, p.y);
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 8 * beatGlow;
-
-            ctx.beginPath();
-            const s = p.size * (1 + Math.sin(p.sparklePhase) * 0.3);
-            ctx.moveTo(0, -s * 1.8);
-            ctx.quadraticCurveTo(0, 0, s * 1.8, 0);
-            ctx.quadraticCurveTo(0, 0, 0, s * 1.8);
-            ctx.quadraticCurveTo(0, 0, -s * 1.8, 0);
-            ctx.quadraticCurveTo(0, 0, 0, -s * 1.8);
-            ctx.fill();
-          } else {
-            // Soft circular particle
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * (beatScale > 1.2 ? beatScale * 0.8 : 1), 0, Math.PI * 2);
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 6 * beatGlow;
-            ctx.fill();
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(sprite, p.x - size / 2, p.y - size / 2, size, size);
+            continue;
           }
 
-          ctx.restore();
+          // 2b. Heart Particles (Outline: Layer 1 & Fill: Layer 2)
+          let currentAlpha = 0;
+          let drawSize = p.baseSize;
+
+          if (elapsed < 0.8) {
+            // Ambient subtle floating before gather
+            const idleTime = now * 0.001;
+            p.x = p.originX + Math.sin(idleTime + i) * 4;
+            p.y = p.originY + Math.cos(idleTime + i) * 4;
+            currentAlpha = Math.min(0.4, (elapsed / 0.8) * 0.4);
+          } else if (elapsed >= 0.8 && elapsed < 2.8) {
+            // Smooth gathering into heart position
+            const gatherProgress = (elapsed - 0.8) / 2.0; // 0 to 1
+            // Smooth easeOutCubic
+            const ease = 1 - Math.pow(1 - gatherProgress, 3);
+
+            // Staggered reveal based on fillThreshold for bottom-to-top filling
+            const fillStagger = Math.min(1, Math.max(0, (gatherProgress - p.fillThreshold * 0.4) / 0.6));
+            p.x = p.originX + (p.targetX - p.originX) * ease;
+            p.y = p.originY + (p.targetY - p.originY) * ease;
+            currentAlpha = (0.35 + fillStagger * 0.65) * p.targetAlpha;
+          } else if (elapsed >= 2.8 && elapsed < 5.0) {
+            // Heart is fully formed and rhythmically pulsing
+            const dx = p.targetX - centerX;
+            const dy = p.targetY - centerY;
+            p.x = centerX + dx * beatScale;
+            p.y = centerY + dy * beatScale;
+
+            p.sparklePhase += p.sparkleSpeed * 1.4;
+            currentAlpha = (0.55 + Math.abs(Math.sin(p.sparklePhase)) * 0.45) * p.targetAlpha * beatGlow;
+            drawSize = p.baseSize * (beatScale > 1.05 ? 1.2 : 1.0);
+          } else if (elapsed >= 5.0) {
+            // Outward stardust explosion transition
+            const dx = p.targetX - centerX;
+            const dy = p.targetY - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const explosionSpeed = (elapsed - 5.0) * 22;
+
+            p.x += (dx / dist) * explosionSpeed * (1.1 + (i % 4) * 0.3);
+            p.y += (dy / dist) * explosionSpeed * (1.1 + (i % 4) * 0.3);
+            currentAlpha = Math.max(0, 1.0 - (elapsed - 5.0) * 2.3);
+          }
+
+          if (currentAlpha > 0.02) {
+            const sprite = p.isStar
+              ? starSprites[p.colorIndex % numStarSprites]
+              : circleSprites[p.colorIndex % numCircleSprites];
+
+            const renderWidth = drawSize * 4.5; // Sprite includes outer soft glow radius
+            ctx.globalAlpha = Math.min(1, currentAlpha);
+            ctx.drawImage(
+              sprite,
+              p.x - renderWidth / 2,
+              p.y - renderWidth / 2,
+              renderWidth,
+              renderWidth
+            );
+          }
         }
       }
 
+      ctx.globalAlpha = 1.0;
       animationFrameIdRef.current = requestAnimationFrame(render);
     };
 
@@ -422,7 +567,11 @@ export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameIdRef.current);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (resizeTimer) clearTimeout(resizeTimer);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
     };
   }, [onComplete]);
 
@@ -431,40 +580,39 @@ export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
     if (skipTimeoutRef.current) clearTimeout(skipTimeoutRef.current);
     skipTimeoutRef.current = setTimeout(() => {
       onComplete();
-    }, 400);
+    }, 350);
   };
 
   return (
     <div className="fixed inset-0 z-[1000] w-full h-[100dvh] min-h-[100dvh] flex items-center justify-center overflow-hidden bg-[#02010b] select-none">
-      {/* 1. Deep Romantic Atmospheric Background (Directly from Reference Image 1) */}
-      {/* Dark Cosmic Gradient */}
+      {/* 1. Deep Romantic Cosmic Background Gradient & Optimized Static Atmosphere */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#02010c] via-[#08051e] to-[#04010a]" />
 
-      {/* Large Soft Blurred Romantic Bokeh Orbs (Matching Image 1's soft blue, purple, magenta spheres) */}
-      <div className="absolute top-[10%] left-[12%] w-[280px] sm:w-[420px] h-[280px] sm:h-[420px] bg-[#1d4ed8]/25 rounded-full blur-[80px] sm:blur-[110px] animate-pulse pointer-events-none" />
-      <div className="absolute top-[18%] right-[15%] w-[260px] sm:w-[380px] h-[260px] sm:h-[380px] bg-[#be185d]/25 rounded-full blur-[85px] sm:blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[15%] left-[25%] w-[320px] sm:w-[480px] h-[320px] sm:h-[480px] bg-[#7e22ce]/20 rounded-full blur-[90px] sm:blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[20%] right-[10%] w-[240px] sm:w-[350px] h-[240px] sm:h-[350px] bg-[#0284c7]/20 rounded-full blur-[75px] sm:blur-[100px] pointer-events-none" />
+      {/* 2. Soft Romantic Bokeh Atmosphere (Layered CSS with will-change: transform) */}
+      <div className="absolute top-[10%] left-[12%] w-[260px] sm:w-[400px] h-[260px] sm:h-[400px] bg-[#1d4ed8]/20 rounded-full blur-[80px] sm:blur-[110px] pointer-events-none transform-gpu" />
+      <div className="absolute top-[18%] right-[15%] w-[240px] sm:w-[360px] h-[240px] sm:h-[360px] bg-[#be185d]/20 rounded-full blur-[85px] sm:blur-[120px] pointer-events-none transform-gpu" />
+      <div className="absolute bottom-[15%] left-[25%] w-[300px] sm:w-[450px] h-[300px] sm:h-[450px] bg-[#7e22ce]/20 rounded-full blur-[90px] sm:blur-[130px] pointer-events-none transform-gpu" />
+      <div className="absolute bottom-[20%] right-[10%] w-[220px] sm:w-[330px] h-[220px] sm:h-[330px] bg-[#0284c7]/20 rounded-full blur-[75px] sm:blur-[100px] pointer-events-none transform-gpu" />
 
-      {/* 2. Full-Screen Canvas for Neon Stardust Heart & Floating Particles */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block z-10" />
+      {/* 3. GPU-Accelerated Canvas for Stardust Heart & Sparkling Particles */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block z-10 pointer-events-none" />
 
-      {/* 3. Romantic Central Warm Aura Glow */}
+      {/* 4. Central Romantic Aura Glow (Smooth CSS Transition without per-frame re-renders) */}
       <div
-        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[520px] h-[340px] sm:h-[520px] rounded-full pointer-events-none transition-all duration-700 ${
-          animationPhase === 'beating' || animationPhase === 'formed'
-            ? 'bg-gradient-to-r from-pink-500/25 via-purple-500/30 to-amber-400/20 blur-[90px] scale-110'
-            : 'bg-gradient-to-r from-pink-500/10 via-purple-500/15 to-transparent blur-[70px] scale-90'
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[500px] h-[340px] sm:h-[500px] rounded-full pointer-events-none transition-all duration-1000 transform-gpu ${
+          isHeartFormed
+            ? 'bg-gradient-to-r from-pink-500/25 via-purple-500/30 to-amber-400/20 blur-[85px] scale-110 opacity-100'
+            : 'bg-gradient-to-r from-pink-500/10 via-purple-500/15 to-transparent blur-[70px] scale-90 opacity-60'
         }`}
       />
 
-      {/* 4. Elegant Optional Text: "Something special is waiting for you…" */}
+      {/* 5. Bottom Text: "Something special is waiting for you…" */}
       <AnimatePresence>
         {showText && (
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10, transition: { duration: 0.5 } }}
+            exit={{ opacity: 0, y: -10, transition: { duration: 0.4 } }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
             className="absolute bottom-16 sm:bottom-20 left-0 right-0 z-20 flex flex-col items-center justify-center text-center px-4 pointer-events-none"
           >
@@ -474,7 +622,7 @@ export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: 0.2 }}
               className="flex items-center gap-1.5 mt-2 text-[11px] uppercase tracking-[0.25em] text-pink-300/60 font-mono"
             >
               <Sparkles className="w-3 h-3 text-amber-300 animate-spin" />
@@ -485,17 +633,17 @@ export const RomanticLoadingIntro: React.FC<RomanticLoadingIntroProps> = ({
         )}
       </AnimatePresence>
 
-      {/* 5. Smooth Light Glow Expansion Flash (Final Step: Stardust → Heart → Heart Glow → Birthday Website) */}
+      {/* 6. Smooth Light Glow Expansion Flash for Page Transition */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{
           opacity: isExpandingOut ? 1 : 0,
         }}
-        transition={{ duration: 0.65, ease: 'easeInOut' }}
+        transition={{ duration: 0.6, ease: 'easeInOut' }}
         className="absolute inset-0 z-30 pointer-events-none bg-gradient-to-tr from-pink-500/40 via-purple-600/50 to-white/90 backdrop-blur-xl"
       />
 
-      {/* 6. Subtle Skip Control */}
+      {/* 7. Subtle Skip Control */}
       <button
         onClick={handleSkip}
         className="absolute top-6 right-6 z-40 px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-[10px] tracking-widest text-pink-200/70 hover:text-white uppercase transition-all backdrop-blur-md"

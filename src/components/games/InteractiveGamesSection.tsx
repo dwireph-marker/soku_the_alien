@@ -8,11 +8,11 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { MemoryMatchGame } from './MemoryMatchGame';
 import { RevealSection } from '../common/RevealSection';
 import { ExamUserProgress } from '../../types/examArena';
 import { getUserProgress } from '../../services/firestore/examArena.service';
 
+const MemoryMatchGame = lazy(() => import('./MemoryMatchGame').then(m => ({ default: m.MemoryMatchGame })));
 const ExamArenaMainView = lazy(() => import('../examArena/ExamArenaMainView').then(m => ({ default: m.ExamArenaMainView })));
 
 interface InteractiveGamesSectionProps {
@@ -145,11 +145,20 @@ export const InteractiveGamesSection: React.FC<InteractiveGamesSectionProps> = (
         createPortal(
           <AnimatePresence mode="wait">
             {selectedGame === 'memory_match' && (
-              <MemoryMatchGame
-                key="memory_match_game_modal"
-                soundFxEnabled={soundFxEnabled}
-                onClose={() => setSelectedGame(null)}
-              />
+              <Suspense
+                fallback={
+                  <div className="fixed inset-0 z-[500] bg-[#0c040d]/90 backdrop-blur-md flex flex-col items-center justify-center text-rose-300 font-mono text-sm gap-3">
+                    <div className="w-8 h-8 rounded-full border-2 border-rose-500 border-t-transparent animate-spin" />
+                    <span>Loading Memory Match Game...</span>
+                  </div>
+                }
+              >
+                <MemoryMatchGame
+                  key="memory_match_game_modal"
+                  soundFxEnabled={soundFxEnabled}
+                  onClose={() => setSelectedGame(null)}
+                />
+              </Suspense>
             )}
             {selectedGame === 'exam_arena' && (
               <motion.div
