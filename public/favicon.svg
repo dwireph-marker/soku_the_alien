@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="cakeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
+    <radialGradient id="flame" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="60%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </radialGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="#0c0a17"/>
+  <!-- Candle flame -->
+  <ellipse cx="50" cy="22" rx="6" ry="10" fill="url(#flame)"/>
+  <!-- Candle body -->
+  <rect x="47" y="32" width="6" height="18" rx="2" fill="#fbcfe8"/>
+  <!-- Cake top layer -->
+  <rect x="26" y="50" width="48" height="18" rx="6" fill="url(#cakeGrad)"/>
+  <!-- Frosting drips -->
+  <path d="M26,56 Q32,62 38,56 Q44,62 50,56 Q56,62 62,56 Q68,62 74,56 L74,50 L26,50 Z" fill="#fff1f2"/>
+  <!-- Cake bottom layer -->
+  <rect x="18" y="68" width="64" height="20" rx="6" fill="#be123c"/>
+  <path d="M18,74 Q26,80 34,74 Q42,80 50,74 Q58,80 66,74 Q74,80 82,74 L82,68 L18,68 Z" fill="#ffe4e6"/>
+</svg>

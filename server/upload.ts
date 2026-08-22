@@ -9,18 +9,23 @@ const IMAGES_DIR = path.join(UPLOAD_DIR, 'images');
 const VIDEOS_DIR = path.join(UPLOAD_DIR, 'videos');
 const METADATA_FILE = path.join(process.cwd(), 'data', 'audio_tracks.json');
 
-// Ensure directories exist
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-if (!fs.existsSync(AUDIO_DIR)) {
-  fs.mkdirSync(AUDIO_DIR, { recursive: true });
-}
-if (!fs.existsSync(IMAGES_DIR)) {
-  fs.mkdirSync(IMAGES_DIR, { recursive: true });
-}
-if (!fs.existsSync(VIDEOS_DIR)) {
-  fs.mkdirSync(VIDEOS_DIR, { recursive: true });
+// Ensure directories exist safely
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(AUDIO_DIR)) {
+    fs.mkdirSync(AUDIO_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(IMAGES_DIR)) {
+    fs.mkdirSync(IMAGES_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(VIDEOS_DIR)) {
+    fs.mkdirSync(VIDEOS_DIR, { recursive: true });
+  }
+} catch (err) {
+  // In serverless environments like Vercel, the local disk may be read-only
+  console.warn('Note: Local upload directories cannot be created in read-only environment:', err);
 }
 
 export interface StoredAudioTrack {
