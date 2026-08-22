@@ -11,6 +11,7 @@
     "clean": "rm -rf dist server.js",
     "check-lines": "tsx scripts/check-file-lengths.ts",
     "test:deployment": "tsx tests/deployment/vercel-deployment.test.ts",
+    "test:auth": "tsx tests/auth/firebase-auth-suite.test.ts",
     "security:audit": "tsx tests/security/run-all-tests.ts",
     "lint": "tsc --noEmit"
   },
