@@ -31,7 +31,14 @@ export const ReasoningBattleModal: React.FC<ReasoningBattleModalProps> = ({
   onSaveProgress,
   onClose,
 }) => {
-  const [sessionQuestions, setSessionQuestions] = useState<PreparedQuestion[]>([]);
+  const [sessionQuestions, setSessionQuestions] = useState<PreparedQuestion[]>(() => {
+    return QuestionSessionEngine.createSession(questions, {
+      subject: 'reasoning',
+      count: 10,
+      mode: 'reasoning_battle',
+      userProgress,
+    });
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -42,16 +49,24 @@ export const ReasoningBattleModal: React.FC<ReasoningBattleModalProps> = ({
   const [earnedXP, setEarnedXP] = useState(0);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
 
-  // Initialize 10 reasoning questions
-  useEffect(() => {
-    const session = QuestionSessionEngine.createSession(questions, {
+  const handleRestart = () => {
+    examAudio.playClick();
+    const newSession = QuestionSessionEngine.createSession(questions, {
       subject: 'reasoning',
       count: 10,
       mode: 'reasoning_battle',
       userProgress,
     });
-    setSessionQuestions(session);
-  }, [questions, userProgress]);
+    setSessionQuestions(newSession);
+    setCurrentIndex(0);
+    setSelectedIndex(null);
+    setIsAnswered(false);
+    setCombo(1);
+    setScore(0);
+    setIsCompleted(false);
+    setEarnedXP(0);
+    setCorrectAnswersCount(0);
+  };
 
   const currentQ = sessionQuestions[currentIndex];
 
@@ -302,12 +317,21 @@ export const ReasoningBattleModal: React.FC<ReasoningBattleModalProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-mono font-bold text-xs uppercase tracking-widest transition-all"
-            >
-              RETURN TO EXAM ARENA
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={handleRestart}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-mono font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>PLAY AGAIN</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-mono font-bold text-xs uppercase tracking-widest transition-all cursor-pointer min-h-[44px]"
+              >
+                RETURN TO EXAM ARENA
+              </button>
+            </div>
           </div>
         )}
       </div>

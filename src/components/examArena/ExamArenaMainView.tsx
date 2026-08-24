@@ -21,6 +21,8 @@ import {
   ChevronRight,
   Coins,
   X,
+  LogOut,
+  UserCheck,
 } from 'lucide-react';
 import {
   ExamQuestion,
@@ -52,15 +54,41 @@ import { AchievementsModal } from './AchievementsModal';
 import { RealExamCBTView } from './RealExamCBTView';
 
 interface ExamArenaMainViewProps {
+  initialModal?: string | null;
+  userEmail?: string;
+  onLogout?: () => void;
   onClose: () => void;
 }
 
-export const ExamArenaMainView: React.FC<ExamArenaMainViewProps> = ({ onClose }) => {
+export const ExamArenaMainView: React.FC<ExamArenaMainViewProps> = ({
+  initialModal,
+  userEmail = 'Admin',
+  onLogout,
+  onClose,
+}) => {
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
   const [papers, setPapers] = useState<ExamPaper[]>([]);
   const [userProgress, setUserProgress] = useState<ExamUserProgress | null>(null);
   const [examConfig, setExamConfig] = useState<ExamConfig | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Map initial route to modal
+  const resolveInitialModal = (): any => {
+    if (!initialModal) return null;
+    const m = initialModal.toLowerCase();
+    if (m.includes('reasoning')) return 'reasoning_battle';
+    if (m.includes('gk') || m.includes('quest')) return 'india_quest';
+    if (m.includes('rush')) return 'gk_speed_rush';
+    if (m.includes('english')) return 'english_arena';
+    if (m.includes('daily')) return 'daily_challenge';
+    if (m.includes('practice') || m.includes('smart')) return 'smart_practice';
+    if (m.includes('revision') || m.includes('lab')) return 'revision_lab';
+    if (m.includes('paper') || m.includes('pyq')) return 'previous_papers';
+    if (m.includes('perf')) return 'performance';
+    if (m.includes('achieve') || m.includes('honor')) return 'achievements';
+    if (m.includes('mock') || m.includes('cbt')) return 'real_exam_cbt';
+    return null;
+  };
 
   // Active Game Mode / View Modal
   const [activeModal, setActiveModal] = useState<
@@ -76,7 +104,7 @@ export const ExamArenaMainView: React.FC<ExamArenaMainViewProps> = ({ onClose })
     | 'performance'
     | 'achievements'
     | 'real_exam_cbt'
-  >(null);
+  >(resolveInitialModal);
 
   useEffect(() => {
     async function loadData() {
@@ -223,7 +251,26 @@ export const ExamArenaMainView: React.FC<ExamArenaMainViewProps> = ({ onClose })
                 <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400 flex-shrink-0" />
                 <span className="font-bold">{userProgress.coins}</span>
               </div>
+
+              {/* Admin Auth Status Badge */}
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-cyan-950/60 border border-cyan-500/30 font-mono text-[11px] text-cyan-300 min-h-[38px]">
+                <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="truncate max-w-[130px]">{userEmail}</span>
+              </div>
             </div>
+
+            {/* Logout Button */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-2xl bg-black/50 hover:bg-stone-800 border border-stone-800 hover:border-stone-700 text-stone-400 hover:text-stone-200 transition-colors cursor-pointer min-h-[36px] sm:min-h-[38px] flex items-center gap-1.5 text-xs font-mono"
+                title="Log out of Exam Arena session"
+                aria-label="Logout"
+              >
+                <LogOut className="w-4 h-4 text-stone-400" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            )}
 
             {/* Close Button on Desktop (sm+) */}
             <button

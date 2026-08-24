@@ -11,6 +11,7 @@ import {
   handleMediaUpload,
 } from './upload';
 import { handleGetBirthdaySettings, handleUpdateBirthdaySettings } from './birthday';
+import { examArenaRouter } from './examArena';
 import {
   securityHeadersMiddleware,
   corsMiddleware,
@@ -97,6 +98,9 @@ export function createExpressApp(): express.Express {
   // Birthday Date, Time & Recurring Annual Countdown Settings
   apiRouter.get('/birthday/settings', handleGetBirthdaySettings);
   apiRouter.put('/birthday/settings', authenticateAdmin, handleUpdateBirthdaySettings);
+
+  // Exam Arena Protected API Endpoints
+  apiRouter.use('/exam-arena', examArenaRouter);
 
   // Mount API router at /api
   app.use('/api', apiRouter);

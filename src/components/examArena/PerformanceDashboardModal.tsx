@@ -87,16 +87,110 @@ export const PerformanceDashboardModal: React.FC<PerformanceDashboardModalProps>
     accuracyDelta = recentAccuracy - previousAccuracy;
   }
 
-  const handleResetToZero = async () => {
-    if (window.confirm('Reset all exam arena progress to ground zero (0 solved, 0 XP)?')) {
-      const clean = await resetUserProgressToBeginning();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleConfirmReset = async () => {
+    setIsResetting(true);
+    try {
+      const clean = await resetUserProgressToBeginning(userProgress.userId);
       if (onResetProgress) onResetProgress(clean);
+      setShowResetConfirm(false);
       onClose();
+    } catch (err) {
+      console.error('Reset error:', err);
+    } finally {
+      setIsResetting(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-[510] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden">
+      {/* Reset Confirmation Dialog */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[530] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-md bg-[#0e101d] border-2 border-rose-500/60 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-rose-950/60 text-stone-200 space-y-5 relative"
+          >
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-2.5 rounded-2xl bg-rose-950/80 border border-rose-500/40">
+                <AlertTriangle className="w-6 h-6 text-rose-400 animate-pulse" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold font-mono text-white tracking-wide">
+                RESET ALL EXAM ARENA DATA?
+              </h3>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm text-stone-300 font-sans">
+              <p className="font-semibold text-rose-300">This will permanently remove:</p>
+              <ul className="space-y-1.5 pl-2 text-stone-300 font-mono text-xs">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Performance statistics
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Attempt history
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Achievements & Honors
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  XP and Level
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Streak
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Weak Areas
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Practice history
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Mock test history
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  Exam progress
+                </li>
+              </ul>
+              <p className="text-[11px] text-stone-400 italic pt-1">
+                This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-800">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-mono text-xs font-bold transition-colors cursor-pointer min-h-[40px]"
+              >
+                [ CANCEL ]
+              </button>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={handleConfirmReset}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-mono text-xs font-bold transition-all shadow-lg shadow-rose-950/50 flex items-center gap-2 cursor-pointer min-h-[40px]"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+                <span>{isResetting ? 'RESETTING...' : '[ RESET EVERYTHING ]'}</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       <div className="w-full max-w-3xl max-h-[90vh] bg-gradient-to-b from-[#090b14] via-[#101426] to-[#0a0d18] border border-cyan-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col text-stone-200 my-auto">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between border-b border-cyan-500/20 pb-4 mb-5">
@@ -114,8 +208,8 @@ export const PerformanceDashboardModal: React.FC<PerformanceDashboardModalProps>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleResetToZero}
-              title="Reset progress to 0"
+              onClick={() => setShowResetConfirm(true)}
+              title="Reset all exam arena stats"
               className="p-2 rounded-xl bg-black/40 hover:bg-red-950/40 border border-stone-800 hover:border-red-500/40 text-stone-400 hover:text-red-300 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />

@@ -86,10 +86,19 @@ service cloud.firestore {
       allow write: if request.resource.data.keys().hasOnly(['theme', 'soundFxEnabled', 'musicVolume', 'updatedAt', 'autoPlayMusic']);
     }
 
-    // Exam Arena Questions & Progress
+    // Exam Arena Questions, Papers & Configurations (Admin Only)
     match /examArena/{docId} {
-      allow read: if true;
-      allow write: if isAdmin() || (docId == 'progress' && request.resource.data.size() < 500000);
+      allow read, write: if isAdmin();
+    }
+
+    // User-specific Exam Arena Progress (Authenticated User UID or Admin)
+    match /examArena_progress/{userId} {
+      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Processed Exam Arena Sessions for Replay Protection (User-scoped or Admin)
+    match /examArena_processed_sessions/{sessionKey} {
+      allow read, write: if isAuthenticated() && (sessionKey.matches('^' + request.auth.uid + '_.*') || isAdmin());
     }
   }
 }

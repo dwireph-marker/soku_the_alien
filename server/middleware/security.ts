@@ -100,6 +100,30 @@ export const apiRateLimiter = createRateLimiter({
   message: 'Too many API requests. Please slow down.',
 });
 
+export const verifyAnswerRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 120, // 120 answer verifications per minute (2 per sec, plenty for human exam taking)
+  message: 'Answer verification rate limit exceeded. Please slow down.',
+});
+
+export const recordSessionRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 20, // 20 session submissions per minute
+  message: 'Session submission rate limit exceeded. Please wait a moment.',
+});
+
+export const progressRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 60, // 60 progress saves per minute
+  message: 'Progress update rate limit exceeded.',
+});
+
+export const resetRateLimiter = createRateLimiter({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  maxRequests: 10, // 10 resets per 5 minutes
+  message: 'Too many reset requests. Please wait a few minutes before resetting again.',
+});
+
 // Comprehensive Security headers middleware
 export function securityHeadersMiddleware(req: Request, res: Response, next: NextFunction) {
   // Prevent MIME type sniffing

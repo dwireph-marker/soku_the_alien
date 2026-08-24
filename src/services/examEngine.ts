@@ -51,13 +51,18 @@ export class QuestionSessionEngine {
    * Shuffle options of a single question and update the correctAnswer index
    */
   public static prepareQuestion(q: ExamQuestion): PreparedQuestion {
-    const originalOptions = q.options;
-    const correctVal = originalOptions[q.correctAnswer];
+    const originalOptions = Array.isArray(q.options) ? q.options : [];
+    const validCorrectAnswer =
+      typeof q.correctAnswer === 'number' &&
+      q.correctAnswer >= 0 &&
+      q.correctAnswer < originalOptions.length
+        ? q.correctAnswer
+        : 0;
 
-    // Create array of option objects with original values
-    const optionObjs = originalOptions.map((opt) => ({
+    // Create array of option objects with original index tracking
+    const optionObjs = originalOptions.map((opt, idx) => ({
       text: opt,
-      isCorrect: opt === correctVal,
+      isCorrect: idx === validCorrectAnswer,
     }));
 
     const shuffled = this.shuffle(optionObjs);

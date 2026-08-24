@@ -13,7 +13,7 @@ import { ExamUserProgress } from '../../types/examArena';
 import { getUserProgress } from '../../services/firestore/examArena.service';
 
 const MemoryMatchGame = lazy(() => import('./MemoryMatchGame').then(m => ({ default: m.MemoryMatchGame })));
-const ExamArenaMainView = lazy(() => import('../examArena/ExamArenaMainView').then(m => ({ default: m.ExamArenaMainView })));
+const ExamArenaGuard = lazy(() => import('../examArena/ExamArenaGuard').then(m => ({ default: m.ExamArenaGuard })));
 
 interface InteractiveGamesSectionProps {
   herName?: string;
@@ -177,7 +177,7 @@ export const InteractiveGamesSection: React.FC<InteractiveGamesSectionProps> = (
                     </div>
                   }
                 >
-                  <ExamArenaMainView onClose={() => setSelectedGame(null)} />
+                  <ExamArenaGuard onClose={() => setSelectedGame(null)} />
                 </Suspense>
               </motion.div>
             )}

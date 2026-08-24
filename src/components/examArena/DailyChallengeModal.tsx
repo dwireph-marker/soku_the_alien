@@ -29,22 +29,18 @@ export const DailyChallengeModal: React.FC<DailyChallengeModalProps> = ({
   onSaveProgress,
   onClose,
 }) => {
-  const [sessionQuestions, setSessionQuestions] = useState<PreparedQuestion[]>([]);
+  const [sessionQuestions, setSessionQuestions] = useState<PreparedQuestion[]>(() => {
+    return QuestionSessionEngine.createSession(questions, {
+      count: 10,
+      mode: 'daily_challenge',
+      userProgress,
+    });
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
-
-  // Generate today's balanced quest (Reasoning, GA, English)
-  useEffect(() => {
-    const session = QuestionSessionEngine.createSession(questions, {
-      count: 10,
-      mode: 'daily_challenge',
-      userProgress,
-    });
-    setSessionQuestions(session);
-  }, [questions, userProgress]);
 
   const currentQ = sessionQuestions[currentIndex];
 

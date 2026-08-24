@@ -32,8 +32,8 @@ export const defaultExamQuestions: ExamQuestion[] = [
     difficulty: 'medium',
     question: 'If in a code language "LEADER" is written as "OVZWEV", how will "PRIME" be coded in that system?',
     options: ['KIRNV', 'KIRVN', 'KIROV', 'KJSNV'],
-    correctAnswer: 1, // KIRVN
-    explanation: 'Each letter is replaced by its reverse/opposite alphabetical letter (sum of positions = 27): L(12)↔O(15), E(5)↔V(22), A(1)↔Z(26), D(4)↔W(23), E(5)↔V(22), R(18)↔I(9). For PRIME: P(16)↔K(11), R(18)↔I(9), I(9)↔R(18), M(13)↔N(14), E(5)↔V(22) -> KIRNV (reversing E gives V, M gives N -> KIRVN).',
+    correctAnswer: 0, // KIRNV
+    explanation: 'Each letter is replaced by its reverse/opposite alphabetical letter (sum of positions = 27): L(12)↔O(15), E(5)↔V(22), A(1)↔Z(26), D(4)↔W(23), E(5)↔V(22), R(18)↔I(9). For PRIME: P(16)↔K(11), R(18)↔I(9), I(9)↔R(18), M(13)↔N(14), E(5)↔V(22) -> KIRNV.',
     keyFact: 'Opposite letter pairs: A-Z, B-Y, C-X, D-W, E-V, F-U, G-T, H-S, I-R, J-Q, K-P, L-O, M-N.',
     sourceType: 'OFFICIAL_PYQ',
     sourceExam: 'SSC Stenographer Grade C & D 2025 Shift 1',

@@ -219,6 +219,25 @@
         "currentStreak": { "type": "number" },
         "updatedAt": { "type": "string" }
       }
+    },
+    "ExamArenaProcessedSession": {
+      "title": "ExamArenaProcessedSession",
+      "description": "Processed exam and practice session record for distributed anti-replay protection",
+      "type": "object",
+      "properties": {
+        "sessionKey": { "type": "string", "maxLength": 200 },
+        "userId": { "type": "string", "maxLength": 100 },
+        "sessionId": { "type": "string", "maxLength": 100 },
+        "mode": { "type": "string", "maxLength": 50 },
+        "totalQuestions": { "type": "number" },
+        "correctAnswers": { "type": "number" },
+        "verifiedXP": { "type": "number" },
+        "verifiedCoins": { "type": "number" },
+        "accuracy": { "type": "number" },
+        "timeSpentSeconds": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["sessionKey", "userId", "sessionId"]
     }
   },
   "firestore": {
@@ -252,7 +271,15 @@
     },
     "examArena/{docId}": {
       "schema": "ExamArenaData",
-      "description": "Collection containing exam arena questions, papers, current affairs, config, and user progress"
+      "description": "Collection containing exam arena questions, papers, current affairs, and global configs"
+    },
+    "examArena_progress/{userId}": {
+      "schema": "ExamArenaData",
+      "description": "Collection storing per-user exam progress, stats, and achievements"
+    },
+    "examArena_processed_sessions/{sessionKey}": {
+      "schema": "ExamArenaProcessedSession",
+      "description": "Collection storing processed sessions for anti-replay verification"
     },
     "memories/{memoryId}": {
       "schema": "Memory",

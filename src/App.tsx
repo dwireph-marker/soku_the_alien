@@ -11,6 +11,7 @@ import { InteractiveGamesSection } from './components/games/InteractiveGamesSect
 import { RomanticLoadingIntro } from './components/RomanticLoadingIntro';
 
 const AdminApp = lazy(() => import('./admin/AdminApp').then(m => ({ default: m.AdminApp })));
+const ExamArenaGuard = lazy(() => import('./components/examArena/ExamArenaGuard').then(m => ({ default: m.ExamArenaGuard })));
 
 import { useSiteSettings } from './hooks/firestore/useSiteSettings';
 import { useMemories } from './hooks/firestore/useMemories';
@@ -21,18 +22,43 @@ import { MemoryItem } from './types/firestore';
 import { romanticAudio } from './utils/audio';
 import { Heart } from 'lucide-react';
 
+const parseExamArenaRoute = (): { isOpen: boolean; subRoute: string | null } => {
+  if (typeof window === 'undefined') return { isOpen: false, subRoute: null };
+  const hash = window.location.hash || '';
+  const pathname = window.location.pathname || '';
+
+  if (hash.startsWith('#exam-arena') || hash.startsWith('#/exam-arena')) {
+    const raw = hash.replace(/^#\/?/, '');
+    const parts = raw.split('/');
+    return { isOpen: true, subRoute: parts[1] || null };
+  }
+  if (pathname.startsWith('/exam-arena')) {
+    const raw = pathname.replace(/^\/?/, '');
+    const parts = raw.split('/');
+    return { isOpen: true, subRoute: parts[1] || null };
+  }
+  return { isOpen: false, subRoute: null };
+};
+
 export default function App() {
   const [isAdminView, setIsAdminView] = useState(() => {
     return window.location.hash === '#admin' || window.location.pathname === '/admin';
   });
 
+  const [examArenaRoute, setExamArenaRoute] = useState(parseExamArenaRoute);
+
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleLocationChange = () => {
       const hash = window.location.hash;
       setIsAdminView(hash === '#admin' || window.location.pathname === '/admin');
+      setExamArenaRoute(parseExamArenaRoute());
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
   }, []);
 
   const { settings, loading: settingsLoading } = useSiteSettings();
@@ -219,6 +245,32 @@ export default function App() {
               window.location.hash = '';
             }
             setIsAdminView(false);
+          }}
+        />
+      </Suspense>
+    );
+  }
+
+  if (examArenaRoute.isOpen) {
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#050713] flex flex-col items-center justify-center text-cyan-300 font-mono text-sm gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
+            <span>Verifying Exam Arena Security...</span>
+          </div>
+        }
+      >
+        <ExamArenaGuard
+          initialModal={examArenaRoute.subRoute}
+          onClose={() => {
+            if (window.history && window.history.replaceState) {
+              const cleanPath = window.location.pathname.startsWith('/exam-arena') ? '/' : window.location.pathname;
+              window.history.replaceState(null, document.title, cleanPath + window.location.search);
+            } else {
+              window.location.hash = '';
+            }
+            setExamArenaRoute({ isOpen: false, subRoute: null });
           }}
         />
       </Suspense>
